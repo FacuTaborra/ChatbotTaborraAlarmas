@@ -110,11 +110,11 @@ class Database:
         thirty_minutes_ago = now - timedelta(minutes=30)
         # Traer conversación y mensajes en una sola consulta JOIN
         query = """
-        SELECT c.id as conversation_id, c.user_id, c.started_at, c.is_active,
-               m.sender, m.content, m.timestamp
+        SELECT c.id as conversation_id, c.user_id, c.started_at,
+            m.id as message_id, m.sender, m.content, m.timestamp, m.type
         FROM conversations c
         LEFT JOIN messages m ON c.id = m.conversation_id
-        WHERE c.user_id = %s AND c.is_active = 1 AND c.started_at >= %s
+        WHERE c.user_id = %s AND c.started_at >= %s
         ORDER BY c.started_at DESC, m.timestamp ASC
         """
         async with self.read_pool.acquire() as conn:
@@ -129,21 +129,29 @@ class Database:
                 "id": first["conversation_id"],
                 "user_id": first["user_id"],
                 "started_at": first["started_at"],
-                "is_active": first["is_active"]
             }
             chat_history = []
             for row in rows:
-                if row["sender"] and row["content"] is not None:
+                # Solo agregar si hay mensaje (LEFT JOIN puede traer None)
+                if row["message_id"] and row["content"] is not None:
                     if row["sender"] == "user":
-                        chat_history.append(HumanMessage(content=row["content"]))
-                    else:
-                        chat_history.append(AIMessage(content=row["content"]))
+                        chat_history.append(HumanMessage(
+                            content=row["content"],
+                            additional_kwargs={},
+                            response_metadata={},
+                        ))
+                    elif row["sender"] == "bot":
+                        chat_history.append(AIMessage(
+                            content=row["content"],
+                            additional_kwargs={},
+                            response_metadata={},
+                        ))
             return conversation, chat_history
         else:
             # Crear nueva conversación
             insert_query = """
-            INSERT INTO conversations (user_id, started_at, is_active)
-            VALUES (%s, %s, 1)
+            INSERT INTO conversations (user_id, started_at)
+            VALUES (%s, %s)
             """
             now = datetime.utcnow()
             async with self.write_pool.acquire() as conn:
@@ -156,7 +164,6 @@ class Database:
                 "id": conversation_id,
                 "user_id": user_id,
                 "started_at": now,
-                "is_active": 1
             }
             return conversation, []
         
@@ -182,3 +189,23 @@ class Database:
                             conversation_id, sender, content, timestamp, msg_type
                         ))
                 await conn.commit()
+                
+    async def save_user_name(self, thread_id: int, name: str) -> bool:
+        """
+        Actualiza el nombre del usuario asociado a una conversación (thread_id).
+        """
+        await self.connect()
+        # Buscar el user_id asociado a la conversación
+        query_user = "SELECT user_id FROM conversations WHERE id = %s"
+        async with self.write_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query_user, (thread_id,))
+                result = await cursor.fetchone()
+                if not result:
+                    return False  # No se encontró la conversación
+                user_id = result[0]
+                # Actualizar el nombre del usuario
+                update_query = "UPDATE users SET full_name = %s WHERE id = %s"
+                await cursor.execute(update_query, (name, user_id))
+                await conn.commit()
+        return True

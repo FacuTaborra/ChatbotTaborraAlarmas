@@ -4,6 +4,7 @@ from pydantic import Field
 from typing import Optional
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 class Settings(BaseSettings):
@@ -22,5 +23,7 @@ class Settings(BaseSettings):
     DB_PASS_READER: str = Field(default_factory=lambda: os.getenv("DB_PASS_READER"))
     DB_USER_WRITER: str = Field(default_factory=lambda: os.getenv("DB_USER_WRITER"))
     DB_PASS_WRITER: str = Field(default_factory=lambda: os.getenv("DB_PASS_WRITER"))
+
+    API_KEY_PINECONE: Optional[str] = Field(default_factory=lambda: os.getenv("API_KEY_PINECONE"))
     
 settings = Settings()

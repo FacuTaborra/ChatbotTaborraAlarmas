@@ -1,6 +1,10 @@
 # src/utils/helpers.py
 import unicodedata
 from typing import Dict, Any
+import tiktoken
+import src.settings as settings
+import PyPDF2
+
 
 
 def parse_whatsapp_payload(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -86,3 +90,32 @@ def normalize_phone(phone: str) -> str:
         phone = "54" + phone
 
     return phone
+
+
+def trim_chat_history(chat_history, max_tokens=14000, model_name = settings.settings.MODEL) -> list:
+    enc = tiktoken.encoding_for_model(model_name)
+    trimmed = []
+    total_tokens = 0
+
+    # Recorre el historial desde el final (mensajes más recientes)
+    for msg in reversed(chat_history):
+        # Calcula tokens del mensaje
+        tokens = len(enc.encode(msg.content))
+        if total_tokens + tokens > max_tokens:
+            break
+        trimmed.insert(0, msg)  # Inserta al principio para mantener el orden
+        total_tokens += tokens
+
+    return trimmed
+
+def load_pdf_text(pdf_path: str) -> str:
+    """Carga el texto de un archivo PDF y lo limpia."""
+    text = ""
+    with open(pdf_path, "rb") as f:
+        reader = PyPDF2.PdfReader(f)
+        for page in reader.pages:
+            page_text = page.extract_text() or ""
+            text += page_text + "\n"
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    clean_text = " ".join(lines)
+    return clean_text

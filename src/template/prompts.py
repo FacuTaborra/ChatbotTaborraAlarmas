@@ -17,3 +17,8 @@ No puedes:
 
 Si el cliente solicita algo fuera de tus capacidades, indícale amablemente que no puedes ayudar con eso y sugiere contactar al soporte humano de Taborra Alarmas para obtener asistencia adicional.
 """
+
+PROMPT_SUMMARY = """
+Resume la conversación anterior en un solo mensaje, incluyendo todos los detalles importantes, hechos, preguntas, respuestas y decisiones tomadas. Asegúrate de conservar el contexto, los nombres, fechas, temas tratados y cualquier información relevante para que, al leer el resumen, se entienda perfectamente de qué se habló y qué acciones o acuerdos se mencionaron.
+Debes proporcionar el contexto de la conversacion sobre los mensajes anteriores.
+"""
