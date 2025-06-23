@@ -2,7 +2,7 @@ from typing import Dict
 from src.settings import settings
 from src.langchain.chains import ChatChain
 from src.integrations.whatsapp_integration import WhatsAppService
-from src.utils.helpers import parse_whatsapp_payload
+from src.utils.helpers import parse_whatsapp_payload, trim_chat_history
 from src.database.database import Database
 
 class WhatsAppController:
@@ -64,12 +64,16 @@ class WhatsAppController:
             )
 
         conversation, self.chat_history = await self.database.get_or_create_recent_conversation(user_data.id)
-
         response = self.chat_chain.run(
             input_text=parsed_data['text'],
-            chat_history=self.chat_history
+            chat_history=self.chat_history,
+            thread_id=conversation['id']
         )
-
+        
+        if not response or 'response' not in response:
+            print("Error: La respuesta del chain es None o no contiene 'response'")
+            return None
+        
         await self.whatsapp_service.send_message(parsed_data['phone'], response['response'])
 
         await self.database.save_chat_history(conversation['id'], response['chat_history'])

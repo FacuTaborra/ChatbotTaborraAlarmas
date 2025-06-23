@@ -2,8 +2,16 @@ from typing import Optional
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
+from pydantic import BaseModel
+
 
 Base = declarative_base()
+
+class ChatState(BaseModel):
+    input: str
+    chat_history: list = []
+    response: Optional[str] = None
+    thread_id: Optional[int] = None
 
 class User(Base):
     __tablename__ = "users"
