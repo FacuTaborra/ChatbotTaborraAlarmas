@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict
+from langsmith import Client, wrappers
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -9,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
 from src.settings import settings
-from src.langchain.tools import update_user_name_tool, get_user_name_tool
+from src.langchain.tools import update_user_name_tool, get_user_name_tool, homeassistant_webhook
 from src.template.prompts import INTENT_CLASSIFIER_BASE_TEMPLATE
 from src.database.models import AgentState
 
@@ -23,14 +24,14 @@ class ChatAgent:
             openai_api_key=settings.API_KEY,
         )
 
-        self.tools = [update_user_name_tool, get_user_name_tool]
+        self.tools = [update_user_name_tool, get_user_name_tool, homeassistant_webhook]
 
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", INTENT_CLASSIFIER_BASE_TEMPLATE),
+                ("system", "thread_id: {thread_id}"),
                 MessagesPlaceholder(variable_name="messages"),
                 ("user", "{input}"),
-                ("user", "thread_id: {thread_id}"),
                 ("placeholder", "{agent_scratchpad}"),
             ]
         )
@@ -39,7 +40,7 @@ class ChatAgent:
             llm=self.llm, tools=self.tools, prompt=self.prompt
         )
         self.agent_executor = AgentExecutor(
-            agent=self.agent_chain, tools=self.tools, verbose=False
+            agent=self.agent_chain, tools=self.tools, verbose=True,
         )
 
         self._memories: Dict[str, InMemoryChatMessageHistory] = {}
@@ -105,6 +106,7 @@ class ChatAgent:
             Identificador único de la conversación.  Distintas sesiones de
             usuario deben usar valores distintos para no mezclar contextos.
         """
+        print(f'Mensaje entrante: {input_text}')
         initial_state = AgentState(
             input=input_text,
             messages=chat_history or [],
