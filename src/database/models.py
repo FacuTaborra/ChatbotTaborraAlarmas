@@ -1,17 +1,17 @@
-from typing import Optional
+from typing import List, Optional, Union
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
 from pydantic import BaseModel
-
+from langchain_core.messages import BaseMessage
 
 Base = declarative_base()
 
-class ChatState(BaseModel):
+class AgentState(BaseModel):
     input: str
-    chat_history: list = []
+    messages: List[BaseMessage] = []
     response: Optional[str] = None
-    thread_id: Optional[int] = None
+    thread_id: Optional[Union[int, str]] = None
 
 class User(Base):
     __tablename__ = "users"
