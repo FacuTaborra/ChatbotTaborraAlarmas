@@ -100,39 +100,41 @@ class Database:
 
 
     async def get_or_create_recent_conversation(self, user_id: int):
-        """
-        Busca una conversación activa en los últimos 30 minutos para el usuario.
-        Si no existe, crea una nueva.
-        Devuelve (conversation, chat_history)
-        """
         await self.connect()
         now = datetime.utcnow()
         thirty_minutes_ago = now - timedelta(minutes=30)
-        # Traer conversación y mensajes en una sola consulta JOIN
-        query = """
-        SELECT c.id as conversation_id, c.user_id, c.started_at,
-            m.id as message_id, m.sender, m.content, m.timestamp, m.type
-        FROM conversations c
-        LEFT JOIN messages m ON c.id = m.conversation_id
-        WHERE c.user_id = %s AND c.started_at >= %s
-        ORDER BY c.started_at DESC, m.timestamp ASC
+        # Traer solo la conversación más reciente
+        query_conv = """
+        SELECT id, user_id, started_at
+        FROM conversations
+        WHERE user_id = %s AND started_at >= %s
+        ORDER BY started_at DESC
+        LIMIT 1
         """
         async with self.read_pool.acquire() as conn:
             async with conn.cursor(asyncmy.cursors.DictCursor) as cursor:
-                await cursor.execute(query, (user_id, thirty_minutes_ago))
-                rows = await cursor.fetchall()
+                await cursor.execute(query_conv, (user_id, thirty_minutes_ago))
+                conv = await cursor.fetchone()
 
-        if rows:
-            # Hay al menos una conversación, armar datos y chat_history
-            first = rows[0]
+        if conv:
             conversation = {
-                "id": first["conversation_id"],
-                "user_id": first["user_id"],
-                "started_at": first["started_at"],
+                "id": conv["id"],
+                "user_id": conv["user_id"],
+                "started_at": conv["started_at"],
             }
+            # Traer solo los mensajes de esa conversación
+            query_msgs = """
+            SELECT message_id, sender, content, timestamp, type
+            FROM messages
+            WHERE conversation_id = %s
+            ORDER BY timestamp ASC
+            """
+            async with self.read_pool.acquire() as conn:
+                async with conn.cursor(asyncmy.cursors.DictCursor) as cursor:
+                    await cursor.execute(query_msgs, (conv["id"],))
+                    rows = await cursor.fetchall()
             chat_history = []
             for row in rows:
-                # Solo agregar si hay mensaje (LEFT JOIN puede traer None)
                 if row["message_id"] and row["content"] is not None:
                     if row["sender"] == "user":
                         chat_history.append(HumanMessage(
@@ -167,26 +169,40 @@ class Database:
             }
             return conversation, []
         
-    async def save_chat_history(self, conversation_id: int, chat_history: list):
+    async def save_chat_history(self, message_id: str, conversation_id: int, messages: list):
         """
-        Guarda todos los mensajes de chat_history en la conversación indicada.
+        Guarda solo los mensajes nuevos en la conversación indicada.
         Cada mensaje debe ser instancia de HumanMessage o AIMessage.
         """
+        if not messages:
+            return
         await self.connect()
         insert_query = """
-        INSERT INTO messages (conversation_id, sender, content, timestamp, type)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO messages (message_id, conversation_id, sender, content, timestamp, type)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """
+        check_query = "SELECT 1 FROM messages WHERE message_id = %s LIMIT 1"
         async with self.write_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                for msg in chat_history:
+                for msg in messages:
                     if hasattr(msg, "content"):
+                        # Si el mensaje es del usuario, usa el message_id recibido
+                        if msg.__class__.__name__ == "HumanMessage":
+                            msg_id = message_id
+                        else:
+                            # Si es del bot, genera un id único (o usa None para que no choque)
+                            msg_id = f"{message_id}_bot"
+                        # Verifica si ya existe
+                        await cursor.execute(check_query, (msg_id,))
+                        exists = await cursor.fetchone()
+                        if exists:
+                            continue  # Ya existe, no lo insertes
                         sender = "user" if msg.__class__.__name__ == "HumanMessage" else "bot"
                         content = msg.content
                         msg_type = "text"
                         timestamp = getattr(msg, "timestamp", datetime.utcnow())
                         await cursor.execute(insert_query, (
-                            conversation_id, sender, content, timestamp, msg_type
+                            msg_id, conversation_id, sender, content, timestamp, msg_type
                         ))
                 await conn.commit()
                 
@@ -199,7 +215,7 @@ class Database:
         query_user = "SELECT user_id FROM conversations WHERE id = %s"
         async with self.write_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(query_user, (thread_id,))
+                await cursor.execute(query_user, (thread_id))
                 result = await cursor.fetchone()
                 if not result:
                     return False  # No se encontró la conversación
@@ -209,3 +225,43 @@ class Database:
                 await cursor.execute(update_query, (name, user_id))
                 await conn.commit()
         return True
+
+    async def get_user_by_thread_id(self, thread_id: int) -> Optional[dict]:
+        """
+        Devuelve los datos del usuario asociado a una conversación (thread_id).
+        """
+        await self.connect()
+        query = """
+        SELECT u.full_name
+        FROM users u
+        JOIN conversations c ON u.id = c.user_id
+        WHERE c.id = %s
+        """
+        async with self.read_pool.acquire() as conn:
+            async with conn.cursor(asyncmy.cursors.DictCursor) as cursor:
+                await cursor.execute(query, (thread_id,))
+                result = await cursor.fetchone()
+                if result:
+                    return dict(result)
+                return
+            
+
+    async def is_message_processed(self, message_id: str) -> bool:
+        """
+        Verifica si un mensaje ya fue procesado usando su message_id.
+
+        Args:
+            message_id: ID único del mensaje de WhatsApp
+
+        Returns:
+            True si el mensaje ya existe en la base de datos, False si no.
+        """
+        await self.connect()
+        query = """
+            SELECT 1 FROM messages WHERE message_id = %s LIMIT 1
+        """
+        async with self.read_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query, (message_id,))
+                result = await cursor.fetchone()
+                return result is not None

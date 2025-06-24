@@ -1,8 +1,8 @@
 from typing import Dict
 from src.settings import settings
-from src.langchain.chains import ChatChain
+from src.langchain.agent import ChatAgent
 from src.integrations.whatsapp_integration import WhatsAppService
-from src.utils.helpers import parse_whatsapp_payload, trim_chat_history
+from src.utils.helpers import parse_whatsapp_payload
 from src.database.database import Database
 
 class WhatsAppController:
@@ -10,7 +10,7 @@ class WhatsAppController:
         """
         Inicializa la integración de WhatsApp.
         """
-        self.chat_chain = ChatChain()
+        self.chat_agent = ChatAgent()
         self.whatsapp_service = WhatsAppService()
         self.chat_history = []
         self.database = Database()
@@ -50,8 +50,15 @@ class WhatsAppController:
         parsed_data = parse_whatsapp_payload(data)
         print(f"Parsed data: {parsed_data}")
 
-        if not parsed_data["success"]:
+        if parsed_data["success"] == False:
             return None
+        
+        message_id = parsed_data.get("message_id")
+        if message_id:
+            already_processed = await self.database.is_message_processed(message_id)
+            if already_processed:
+                print(f"Mensaje duplicado ignorado: {message_id}")
+                return None
         
         # Verificar si el usuario ya existe en la base de datos
         user_data = await self.database.get_user_by_phone(parsed_data['phone'])
@@ -64,18 +71,25 @@ class WhatsAppController:
             )
 
         conversation, self.chat_history = await self.database.get_or_create_recent_conversation(user_data.id)
-        response = self.chat_chain.run(
+        response = await self.chat_agent.run(
             input_text=parsed_data['text'],
             chat_history=self.chat_history,
-            thread_id=conversation['id']
+            thread_id=conversation['id'] 
         )
-        
-        if not response or 'response' not in response:
-            print("Error: La respuesta del chain es None o no contiene 'response'")
-            return None
         
         await self.whatsapp_service.send_message(parsed_data['phone'], response['response'])
 
-        await self.database.save_chat_history(conversation['id'], response['chat_history'])
+        mensajes_a_guardar = []
+        if response['chat_history']:
+            # Último mensaje del usuario (si hay al menos dos)
+            if len(response['chat_history']) >= 2:
+                mensajes_a_guardar.append(response['chat_history'][-2])
+            # Última respuesta del bot
+            mensajes_a_guardar.append(response['chat_history'][-1])
+
+        await self.database.save_chat_history(parsed_data.get("message_id"), conversation['id'], mensajes_a_guardar)
 
         return None
+
+
+
