@@ -6,17 +6,16 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 
 from src.settings import settings
 from src.langchain.tools import update_user_name_tool, get_user_name_tool
 from src.template.prompts import INTENT_CLASSIFIER_BASE_TEMPLATE
-from src.database.models import ChatState
+from src.database.models import AgentState
 
 
 class ChatAgent:
     """Agente de chat con herramientas y memoria por sesión (thread_id)."""
-
     def __init__(self) -> None:
         self.llm = ChatOpenAI(
             model_name=settings.MODEL,
@@ -29,7 +28,7 @@ class ChatAgent:
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", INTENT_CLASSIFIER_BASE_TEMPLATE),
-                MessagesPlaceholder(variable_name="chat_history"),
+                MessagesPlaceholder(variable_name="messages"),
                 ("user", "{input}"),
                 ("user", "thread_id: {thread_id}"),
                 ("placeholder", "{agent_scratchpad}"),
@@ -51,47 +50,42 @@ class ChatAgent:
                 session_id, InMemoryChatMessageHistory()
             ),
             input_messages_key="input",
-            history_messages_key="chat_history",
+            history_messages_key="messages",
         )
 
-        graph = StateGraph(state_schema=ChatState)
+        graph = StateGraph(state_schema=AgentState)
         graph.add_node("process", self._process_message)
+
+        graph.add_edge(START, "process")
         graph.add_edge("process", END)
-        graph.set_entry_point("process")
+        
         self.graph = graph.compile()
 
-    async def _process_message(self, state: ChatState) -> ChatState:
-        """
-        Nodo único del grafo: recibe un ChatState, actualiza la memoria
-        (si viene chat_history externo) y obtiene la respuesta del agente.
-        """
+    async def _process_message(self, state: AgentState) -> AgentState:
         input_text: str = state.input
-        incoming_history: List = state.chat_history or []
+        incoming_messages: List = state.messages or []
         thread_id: str = str(state.thread_id or "default")
 
-        # -- Volcar historial externo (si viene) a la memoria de la sesión --
         memory = self._memories.setdefault(thread_id, InMemoryChatMessageHistory())
-        if incoming_history:
-            # Vaciar y re-cargar para sincronizar con datos externos
+        if incoming_messages:
+            print(incoming_messages)
             memory.clear()
-            for msg in incoming_history:
-                print(msg)
+            for msg in incoming_messages:
                 memory.add_message(msg)
 
-        # -- Invocar al agente con memoria persistente ----------------------
+        print(memory)
+
         response = await self.agent_with_history.ainvoke(
             {"input": input_text, "thread_id": thread_id},
             config={"configurable": {"session_id": thread_id}},
         )
 
         output = response.get("output") if isinstance(response, dict) else str(response)
+        updated_messages: List = list(memory.messages)
 
-        # -- Extraer historial actualizado ----------------------------------
-        updated_history: List = list(memory.messages)
-
-        return ChatState(
+        return AgentState(
             input=input_text,
-            chat_history=updated_history,
+            messages=updated_messages,
             response=output,
             thread_id=thread_id,
         )
@@ -111,11 +105,13 @@ class ChatAgent:
             Identificador único de la conversación.  Distintas sesiones de
             usuario deben usar valores distintos para no mezclar contextos.
         """
-        print(chat_history)
-        initial_state = ChatState(
+        initial_state = AgentState(
             input=input_text,
-            chat_history=chat_history or [],
+            messages=chat_history or [],
             thread_id=thread_id,
         )
-        result_state: ChatState = await self.graph.ainvoke(initial_state)
+        result_state = await self.graph.ainvoke(initial_state)
+        # Si el resultado es un dict, convertilo a AgentState
+        if isinstance(result_state, dict):
+            result_state = AgentState(**result_state)
         return result_state

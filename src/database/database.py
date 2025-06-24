@@ -1,12 +1,12 @@
-import json
-import secrets
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, Tuple
 import asyncmy
 from src.settings import settings
-from src.database.models import User, Conversation, Message
+from src.database.models import User
 from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage, AIMessage
+from zoneinfo import ZoneInfo
+
 
 class Database:
     def __init__(self):
@@ -98,31 +98,41 @@ class Database:
                 user = User(id=user_id, full_name=fullname, phone=phone, level=1)
                 return user
 
-
     async def get_or_create_recent_conversation(self, user_id: int):
+        """
+        Trae la conversación más reciente del usuario solo si el último mensaje fue hace 30 minutos o menos.
+        Si no, crea una nueva conversación.
+        """
         await self.connect()
-        now = datetime.utcnow()
+        now = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires"))
         thirty_minutes_ago = now - timedelta(minutes=30)
-        # Traer solo la conversación más reciente
-        query_conv = """
-        SELECT id, user_id, started_at
-        FROM conversations
-        WHERE user_id = %s AND started_at >= %s
-        ORDER BY started_at DESC
+
+        # Solo conversaciones con mensajes
+        query = """
+        SELECT c.id, c.user_id, c.started_at, MAX(m.timestamp) as last_msg_time
+        FROM conversations c
+        JOIN messages m ON c.id = m.conversation_id
+        WHERE c.user_id = %s
+        GROUP BY c.id, c.user_id, c.started_at
+        ORDER BY last_msg_time DESC
         LIMIT 1
         """
         async with self.read_pool.acquire() as conn:
             async with conn.cursor(asyncmy.cursors.DictCursor) as cursor:
-                await cursor.execute(query_conv, (user_id, thirty_minutes_ago))
+                await cursor.execute(query, (user_id,))
                 conv = await cursor.fetchone()
 
-        if conv:
-            conversation = {
-                "id": conv["id"],
-                "user_id": conv["user_id"],
-                "started_at": conv["started_at"],
-            }
-            # Traer solo los mensajes de esa conversación
+        use_existing = False
+        if conv and conv["last_msg_time"]:
+            last_msg_time = conv["last_msg_time"]
+            now = datetime.now()
+            thirty_minutes_ago = now - timedelta(minutes=30)
+            # last_msg_time viene naive de la base, así que compará directo:
+            if last_msg_time > thirty_minutes_ago:
+                use_existing = True
+
+        if use_existing:
+            # Traer todos los mensajes de esa conversación
             query_msgs = """
             SELECT message_id, sender, content, timestamp, type
             FROM messages
@@ -148,63 +158,69 @@ class Database:
                             additional_kwargs={},
                             response_metadata={},
                         ))
-            return conversation, chat_history
-        else:
-            # Crear nueva conversación
-            insert_query = """
-            INSERT INTO conversations (user_id, started_at)
-            VALUES (%s, %s)
-            """
-            now = datetime.utcnow()
-            async with self.write_pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    await cursor.execute(insert_query, (user_id, now))
-                    await conn.commit()
-                    await cursor.execute("SELECT LAST_INSERT_ID()")
-                    conversation_id = (await cursor.fetchone())[0]
             conversation = {
-                "id": conversation_id,
-                "user_id": user_id,
-                "started_at": now,
+                "id": conv["id"],
+                "user_id": conv["user_id"],
+                "started_at": conv["started_at"],
             }
-            return conversation, []
-        
-    async def save_chat_history(self, message_id: str, conversation_id: int, messages: list):
-        """
-        Guarda solo los mensajes nuevos en la conversación indicada.
-        Cada mensaje debe ser instancia de HumanMessage o AIMessage.
-        """
-        if not messages:
-            return
-        await self.connect()
+            return conversation, chat_history
+
+        # Si no hay conversación reciente o el último mensaje es viejo, crear nueva
         insert_query = """
-        INSERT INTO messages (message_id, conversation_id, sender, content, timestamp, type)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO conversations (user_id, started_at)
+        VALUES (%s, %s)
         """
-        check_query = "SELECT 1 FROM messages WHERE message_id = %s LIMIT 1"
         async with self.write_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                for msg in messages:
-                    if hasattr(msg, "content"):
-                        # Si el mensaje es del usuario, usa el message_id recibido
-                        if msg.__class__.__name__ == "HumanMessage":
-                            msg_id = message_id
-                        else:
-                            # Si es del bot, genera un id único (o usa None para que no choque)
-                            msg_id = f"{message_id}_bot"
-                        # Verifica si ya existe
-                        await cursor.execute(check_query, (msg_id,))
-                        exists = await cursor.fetchone()
-                        if exists:
-                            continue  # Ya existe, no lo insertes
-                        sender = "user" if msg.__class__.__name__ == "HumanMessage" else "bot"
-                        content = msg.content
-                        msg_type = "text"
-                        timestamp = getattr(msg, "timestamp", datetime.utcnow())
-                        await cursor.execute(insert_query, (
-                            msg_id, conversation_id, sender, content, timestamp, msg_type
-                        ))
+                await cursor.execute(insert_query, (user_id, now))
                 await conn.commit()
+                await cursor.execute("SELECT LAST_INSERT_ID()")
+                conversation_id = (await cursor.fetchone())[0]
+        conversation = {
+            "id": conversation_id,
+            "user_id": user_id,
+            "started_at": now,
+        }
+        return conversation, []
+        
+    async def save_chat_history(self, message_id: str, conversation_id: int, messages: list):
+            """
+            Guarda solo los mensajes nuevos en la conversación indicada.
+            Cada mensaje debe ser instancia de HumanMessage o AIMessage.
+            Evita guardar mensajes duplicados usando la PK message_id.
+            """
+            if not messages:
+                return
+            await self.connect()
+            insert_query = """
+            INSERT INTO messages (message_id, conversation_id, sender, content, timestamp, type)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            async with self.write_pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    for msg in messages:
+                        if hasattr(msg, "content"):
+                            # Si el mensaje es del usuario, usa el message_id recibido
+                            if msg.__class__.__name__ == "HumanMessage":
+                                msg_id = message_id
+                            else:
+                                # Si es del bot, genera un id único para evitar colisión
+                                msg_id = f"{message_id}_bot"
+                            sender = "user" if msg.__class__.__name__ == "HumanMessage" else "bot"
+                            content = msg.content
+                            msg_type = "text"
+                            timestamp = getattr(msg, "timestamp", datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")))
+                            try:
+                                await cursor.execute(insert_query, (
+                                    msg_id, conversation_id, sender, content, timestamp, msg_type
+                                ))
+                            except Exception as e:
+                                if "Duplicate entry" in str(e):
+                                    print(f"Mensaje duplicado ignorado: {msg_id}")
+                                    continue
+                                else:
+                                    raise
+                    await conn.commit()
                 
     async def save_user_name(self, thread_id: int, name: str) -> bool:
         """

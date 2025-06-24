@@ -71,21 +71,21 @@ class WhatsAppController:
             )
 
         conversation, self.chat_history = await self.database.get_or_create_recent_conversation(user_data.id)
-        response = await self.chat_agent.run(
+        response_state = await self.chat_agent.run(
             input_text=parsed_data['text'],
             chat_history=self.chat_history,
             thread_id=conversation['id'] 
         )
-        
-        await self.whatsapp_service.send_message(parsed_data['phone'], response['response'])
+
+        await self.whatsapp_service.send_message(parsed_data['phone'], response_state.response)
 
         mensajes_a_guardar = []
-        if response['chat_history']:
+        if response_state.messages:
             # Último mensaje del usuario (si hay al menos dos)
-            if len(response['chat_history']) >= 2:
-                mensajes_a_guardar.append(response['chat_history'][-2])
+            if len(response_state.messages) >= 2:
+                mensajes_a_guardar.append(response_state.messages[-2])
             # Última respuesta del bot
-            mensajes_a_guardar.append(response['chat_history'][-1])
+            mensajes_a_guardar.append(response_state.messages[-1])
 
         await self.database.save_chat_history(parsed_data.get("message_id"), conversation['id'], mensajes_a_guardar)
 
