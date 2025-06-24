@@ -44,6 +44,7 @@ def parse_whatsapp_payload(data: Dict[str, Any]) -> Dict[str, Any]:
 
     message_data = messages[0]
     result["message_id"] = message_data.get("id", "")
+    
 
     # Extraer texto
     if message_data.get("type") == "text":
