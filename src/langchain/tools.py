@@ -22,15 +22,20 @@ async def get_user_name_tool(thread_id: int) -> str:
     return "Aún no tengo tu número agregado. ¿Podrías decirme tu nombre para agendarlo?"
 
 @tool
-async def homeassistant_webhook(thread_id: int, webhook_url: str = None, payload: dict = None) -> str:
+async def homeassistant_webhook(thread_id: int, action: str, info: str = None) -> str:
     """
     Llama a un webhook de HomeAssistant si el usuario pide acciones relacionadas con la alarma.
-    Pueden ser acciones como pedir el estado de la alarma o ver imagenes de la camara.
-    Informa amablemente segun si tiene acceso o no a esa funcion.
-    en payload debes pones lo que quiere el usuario.
+    El parámetro 'action' define la acción a realizar (ej: 'escaneo', 'estadoAlarma').
+    Si la acción requiere una cámara, pasa el nombre en 'info'.
     """
-    ha = HomeAssistantIntegration()
-    response = await ha.homeassistant_webhook(thread_id, webhook_url, payload)
-    return response
+    try: 
+        payload = {"action": action}
+        if info:
+            payload["camara"] = info
+        ha = HomeAssistantIntegration()
+        response = await ha.homeassistant_webhook(thread_id, payload)
+        return response
+    except Exception as e:
+        return 'No se pudo ejecutar la acción'
 
 

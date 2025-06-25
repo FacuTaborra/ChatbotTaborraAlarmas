@@ -20,7 +20,7 @@ class HomeAssistantIntegration:
         else:
             self.enabled = True
 
-    async def homeassistant_webhook(self, thread_id: int, webhook_url: str = None, payload: dict = None) -> str:
+    async def homeassistant_webhook(self, thread_id: int, payload: dict = None) -> str:
         db = Database()
         user = await db.get_user_by_thread_id(thread_id, 'level')
         if not user:
@@ -28,4 +28,14 @@ class HomeAssistantIntegration:
         if user.get("level", 0) < 3:
             return "No tienes permisos para ejecutar esta acción."
         if user.get("level") == 3:
-            return "La alarma esta activada"
+            action = payload.get('action')
+            info = payload.get('info')
+            if action == 'escaneo':
+                if info:
+                    return f'La cámara {info} fue escaneada y no se detecta nada sospechoso.'
+                else:
+                    return 'Las cámaras fueron escaneadas y no se encuentra nada sospechoso.'
+            elif action == 'estadoAlarma':
+                return 'Activada'
+            else:
+                return 'Acción no reconocida.'
