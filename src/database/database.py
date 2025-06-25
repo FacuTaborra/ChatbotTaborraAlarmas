@@ -146,18 +146,18 @@ class Database:
             chat_history = []
             for row in rows:
                 if row["message_id"] and row["content"] is not None:
+                    msg_kwargs = {
+                        "content": row["content"],
+                        "additional_kwargs": {},
+                        "response_metadata": {},
+                    }
+                    # Agregar timestamp si existe
+                    if row.get("timestamp"):
+                        msg_kwargs["timestamp"] = row["timestamp"]
                     if row["sender"] == "user":
-                        chat_history.append(HumanMessage(
-                            content=row["content"],
-                            additional_kwargs={},
-                            response_metadata={},
-                        ))
+                        chat_history.append(HumanMessage(**msg_kwargs))
                     elif row["sender"] == "bot":
-                        chat_history.append(AIMessage(
-                            content=row["content"],
-                            additional_kwargs={},
-                            response_metadata={},
-                        ))
+                        chat_history.append(AIMessage(**msg_kwargs))
             conversation = {
                 "id": conv["id"],
                 "user_id": conv["user_id"],
@@ -242,13 +242,13 @@ class Database:
                 await conn.commit()
         return True
 
-    async def get_user_by_thread_id(self, thread_id: int) -> Optional[dict]:
+    async def get_user_by_thread_id(self, thread_id: int, intent: str) -> Optional[dict]:
         """
         Devuelve los datos del usuario asociado a una conversación (thread_id).
         """
         await self.connect()
-        query = """
-        SELECT u.full_name
+        query = f"""
+        SELECT u.{intent}
         FROM users u
         JOIN conversations c ON u.id = c.user_id
         WHERE c.id = %s
