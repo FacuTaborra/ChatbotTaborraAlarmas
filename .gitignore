@@ -1,0 +1,16 @@
+# Ignorar archivos de configuración sensibles
+.env
+config.py
+
+# Ignorar archivos de dependencias de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignorar entornos virtuales
+.venv/
+venv/
+
+# Ignorar archivos del sistema operativo
+.DS_Store
+Thumbs.db
