@@ -1,5 +1,4 @@
 from typing import List, Optional, Dict
-from langsmith import Client, wrappers
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -10,10 +9,9 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
 from src.settings import settings
-from src.langchain.tools import update_user_name_tool, get_user_name_tool, homeassistant_webhook
+from src.langchain.tools import update_user_name_tool, get_user_name_tool, faq_tool, log_user_faq_tool, homeassistant_webhook
 from src.template.prompts import INTENT_CLASSIFIER_BASE_TEMPLATE
 from src.database.models import AgentState
-
 
 class ChatAgent:
     """Agente de chat con herramientas y memoria por sesión (thread_id)."""
@@ -24,7 +22,7 @@ class ChatAgent:
             openai_api_key=settings.API_KEY,
         )
 
-        self.tools = [update_user_name_tool, get_user_name_tool, homeassistant_webhook]
+        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool]
 
         self.prompt = ChatPromptTemplate.from_messages(
             [

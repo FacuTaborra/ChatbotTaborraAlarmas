@@ -108,15 +108,3 @@ def trim_chat_history(chat_history, max_tokens=14000, model_name = settings.sett
         total_tokens += tokens
 
     return trimmed
-
-def load_pdf_text(pdf_path: str) -> str:
-    """Carga el texto de un archivo PDF y lo limpia."""
-    text = ""
-    with open(pdf_path, "rb") as f:
-        reader = PyPDF2.PdfReader(f)
-        for page in reader.pages:
-            page_text = page.extract_text() or ""
-            text += page_text + "\n"
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    clean_text = " ".join(lines)
-    return clean_text

@@ -2,7 +2,6 @@ from langchain.tools import tool
 from src.database.database import Database
 from src.integrations.homeassistant_integration import HomeAssistantIntegration
 
-
 @tool
 async def update_user_name_tool(thread_id: int, name: str) -> str:
     """Actualiza el nombre del usuario asociado a la conversación."""
@@ -38,4 +37,29 @@ async def homeassistant_webhook(thread_id: int, action: str, info: str = None) -
     except Exception as e:
         return 'No se pudo ejecutar la acción'
 
+@tool
+async def faq_tool(thread_id: int, question: str) -> str:
+    """
+    Esta herramienta es para consultar sobre preguntas frecuentes o problemas que puede tener un cliente segun el tipo de la alarma.
+    Utiliza la informacion para explicar un paso a paso lo mas simple posible, no envies el texto tal cual solo la informacion necesaria.
+    """
+    db = Database()
+    user = await db.get_user_by_thread_id(thread_id, "level")
+    if not user or user.get("level", 0) < 2:
+        return "No tienes permisos para ver esta información."
+    faq = await db.search_faq(question)
+    if not faq:
+        return "No encontré una respuesta en las FAQs."
+    text = faq.get("desc_faq", "")
+    if faq.get("link"):
+        text += f"\nVideo: {faq['link']}"
+    return text
 
+@tool
+async def log_user_faq_tool(thread_id: int, faq_id: int, is_done: bool = False) -> str:
+    """Guarda en la base qué FAQ vio el usuario y si se resolvió."""
+    db = Database()
+    ok = await db.log_user_faq(thread_id, faq_id, is_done)
+    if ok:
+        return "FAQ registrada"
+    return "No se pudo registrar la FAQ"

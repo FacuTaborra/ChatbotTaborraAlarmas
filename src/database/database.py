@@ -6,6 +6,9 @@ from src.database.models import User
 from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage, AIMessage
 from zoneinfo import ZoneInfo
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import FAISS
+import os
 
 
 class Database:
@@ -281,3 +284,63 @@ class Database:
                 await cursor.execute(query, (message_id,))
                 result = await cursor.fetchone()
                 return result is not None
+            
+    async def search_faq(self, question: str, return_score: bool = False):
+        """Busca la FAQ más relacionada a la pregunta y devuelve opcionalmente la puntuación."""
+        await self.connect()
+        query = "SELECT f.id, m.name, f.title_faq, f.desc_faq, f.link FROM faqs as f INNER JOIN alarm_models as m on m.id = f.alarm_id"
+        async with self.read_pool.acquire() as conn:
+            async with conn.cursor(asyncmy.cursors.DictCursor) as cursor:
+                await cursor.execute(query)
+                rows = await cursor.fetchall()
+
+        if not rows:
+            return None
+
+        texts = [f"{row['title_faq']}. {row['desc_faq']}" for row in rows]
+        metadatas = [
+            {
+                "id": row["id"],
+                "AlarmModel": row["name"],
+                "title_faq": row["title_faq"],
+                "desc_faq": row["desc_faq"],
+                "link": row["link"],
+            }
+            for row in rows
+        ]
+
+        embeddings = OpenAIEmbeddings()
+        index_path = "faqs_index"
+        if not os.path.exists(index_path):
+            store = FAISS.from_texts(texts, embeddings, metadatas=metadatas)
+            store.save_local(index_path)
+        else:
+            store = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
+
+        docs = store.similarity_search_with_score(question, k=1)
+        if not docs:
+            return (None, 0.0) if return_score else None
+        doc, distance = docs[0]
+        similarity = 1 / (1 + distance)
+        if return_score:
+            return doc.metadata, similarity
+        return doc.metadata
+
+    async def log_user_faq(self, thread_id: int, faq_id: int, is_done: bool) -> bool:
+        """Registra que un usuario consultó una FAQ y si se resolvió."""
+        await self.connect()
+        query_user = "SELECT user_id FROM conversations WHERE id = %s"
+        insert = """
+        INSERT INTO user_faqs (user_id, faq_id, is_done)
+        VALUES (%s, %s, %s)
+        """
+        async with self.write_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query_user, (thread_id,))
+                res = await cursor.fetchone()
+                if not res:
+                    return False
+                user_id = res[0]
+                await cursor.execute(insert, (user_id, faq_id, int(is_done)))
+                await conn.commit()
+        return True
