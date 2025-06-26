@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage, AIMessage
 from zoneinfo import ZoneInfo
 from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 import os
 
@@ -264,7 +265,6 @@ class Database:
                     return dict(result)
                 return
             
-
     async def is_message_processed(self, message_id: str) -> bool:
         """
         Verifica si un mensaje ya fue procesado usando su message_id.
@@ -285,46 +285,60 @@ class Database:
                 result = await cursor.fetchone()
                 return result is not None
             
-    async def search_faq(self, question: str, return_score: bool = False):
-        """Busca la FAQ más relacionada a la pregunta y devuelve opcionalmente la puntuación."""
+    
+    async def update_faq_vectors(self) -> bool:
+        """
+        Re-crea el índice FAISS con todas las FAQs.
+
+        • Modelo de embedding: `text-embedding-3-large`.  
+        • Chunking: 400 tokens con 120 de solapamiento.  
+        • Incluye el nombre del modelo de alarma en los metadatos.  
+        • Guarda el índice en la carpeta local «faqs_index».
+        """
+        # 1) Traer datos
         await self.connect()
-        query = "SELECT f.id, m.name, f.title_faq, f.desc_faq, f.link FROM faqs as f INNER JOIN alarm_models as m on m.id = f.alarm_id"
+        sql = """
+            SELECT  f.id,
+                    f.title_faq,
+                    f.desc_faq,
+                    f.link,
+                    am.name AS model_alarm
+            FROM    faqs f
+            JOIN    alarm_models am ON am.id = f.alarm_id
+        """
         async with self.read_pool.acquire() as conn:
-            async with conn.cursor(asyncmy.cursors.DictCursor) as cursor:
-                await cursor.execute(query)
-                rows = await cursor.fetchall()
+            async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+                await cur.execute(sql)
+                rows = await cur.fetchall()
 
         if not rows:
-            return None
+            return False
 
-        texts = [f"{row['title_faq']}. {row['desc_faq']}" for row in rows]
-        metadatas = [
-            {
-                "id": row["id"],
-                "AlarmModel": row["name"],
-                "title_faq": row["title_faq"],
-                "desc_faq": row["desc_faq"],
-                "link": row["link"],
-            }
-            for row in rows
-        ]
+        # 2) Chunking
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=400,
+            chunk_overlap=120,
+        )
+        texts = []
+        metadatas = []
+        for row in rows:
+            full_text = f"{row['title_faq']}. {row['desc_faq']}"
+            parts = splitter.split_text(full_text)
+            texts.extend(parts)
+            metadatas.extend([
+                {
+                    "id": row["id"],
+                    "title_faq": row["title_faq"],
+                    "desc_faq": row["desc_faq"],
+                    "model_alarm": row["model_alarm"],
+                    "link": row["link"],
+                }
+            ] * len(parts))
 
-        embeddings = OpenAIEmbeddings()
-        index_path = "faqs_index"
-        if not os.path.exists(index_path):
-            store = FAISS.from_texts(texts, embeddings, metadatas=metadatas)
-            store.save_local(index_path)
-        else:
-            store = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
-
-        docs = store.similarity_search_with_score(question, k=1)
-        if not docs:
-            return (None, 0.0) if return_score else None
-        doc, distance = docs[0]
-        similarity = 1 / (1 + distance)
-        if return_score:
-            return doc.metadata, similarity
-        return doc.metadata
+        # 3) Embeddings + FAISS
+        embed = OpenAIEmbeddings(model="text-embedding-3-large")
+        store = FAISS.from_texts(texts, embed, metadatas=metadatas)
+        store.save_local("faqs_index")
 
     async def log_user_faq(self, thread_id: int, faq_id: int, is_done: bool) -> bool:
         """Registra que un usuario consultó una FAQ y si se resolvió."""

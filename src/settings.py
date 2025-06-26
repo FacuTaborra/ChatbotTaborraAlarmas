@@ -24,5 +24,7 @@ class Settings(BaseSettings):
     DB_PASS_WRITER: str = Field(default_factory=lambda: os.getenv("DB_PASS_WRITER"))
 
     API_KEY_PINECONE: Optional[str] = Field(default_factory=lambda: os.getenv("API_KEY_PINECONE"))
+
+    EMB_MODEL: str = Field(default_factory=lambda: os.getenv("EMB_MODEL"))
     
 settings = Settings()

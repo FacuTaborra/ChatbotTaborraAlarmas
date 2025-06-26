@@ -1,6 +1,6 @@
 from typing import Dict
 from src.settings import settings
-from src.langchain.agent import ChatAgent
+from src.agent.agent import ChatAgent
 from src.integrations.whatsapp_integration import WhatsAppService
 from src.utils.helpers import parse_whatsapp_payload
 from src.database.database import Database
