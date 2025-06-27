@@ -27,4 +27,5 @@ class Settings(BaseSettings):
 
     EMB_MODEL: str = Field(default_factory=lambda: os.getenv("EMB_MODEL"))
     
+        
 settings = Settings()

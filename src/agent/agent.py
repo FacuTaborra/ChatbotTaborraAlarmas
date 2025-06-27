@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
 from src.settings import settings
-from src.agent.tools.tools import update_user_name_tool, get_user_name_tool, faq_tool, log_user_faq_tool ,homeassistant_webhook
+from src.agent.tools.tools import update_user_name_tool, get_user_name_tool, faq_tool, log_user_faq_tool, homeassistant_webhook
 from src.template.prompts import INTENT_CLASSIFIER_BASE_TEMPLATE
 from src.database.models import AgentState
 
@@ -22,7 +22,7 @@ class ChatAgent:
             openai_api_key=settings.API_KEY,
         )
 
-        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool]
+        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool, log_user_faq_tool]
 
         self.prompt = ChatPromptTemplate.from_messages(
             [

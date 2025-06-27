@@ -4,13 +4,13 @@ from typing import Tuple, Optional
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-
+from src.settings import settings
 from src.database.database import Database
 
 async def search_faq(question: str, return_score: bool = False) -> Optional[Tuple[dict, float]]:
     """Busca en el índice FAISS la FAQ más similar a la pregunta."""
     index_path = "faqs_index"
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-large", api_key=settings.API_KEY)
 
     if not os.path.exists(index_path):
         db = Database()

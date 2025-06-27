@@ -317,11 +317,12 @@ class Database:
         # 2) FAQ completa = 1 documento
         texts, metadatas = [], []
         for row in rows:
-            full_text = f"{row['title_faq']}. {row['desc_faq']}"
+            full_text = f"{row['title_faq']}, Solucion: {row['desc_faq']}"
             texts.append(full_text)
             metadatas.append({
                 "faq_id":      row["id"],
                 "title_faq":   row["title_faq"],
+                "desc_faq": row['desc_faq'],
                 "model_alarm": row["model_alarm"],
                 "video_link":  row["link"],
             })

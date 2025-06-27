@@ -54,7 +54,7 @@ async def homeassistant_webhook(thread_id: int, action: str, info: str = None) -
     except Exception as e:
         return 'No se pudo ejecutar la acción'
 
-@tool(return_direct=True)
+@tool
 async def faq_tool(thread_id: int, question: str) -> str:
     """
     🔧 **Tool `faq_tool` – Guía paso a paso para resolver problemas o preguntas frecuentes de la alarma**
@@ -97,10 +97,27 @@ async def faq_tool(thread_id: int, question: str) -> str:
         faq = await search_faq(question)
         if not faq:
             return "No encontré una respuesta en las FAQs."
-        texto = faq.get("desc_faq", "")
+        
+        faq_id = faq.get("faq_id")
+        titulo = faq.get("title_faq")
+        modelo = faq.get("model_alarm")
+        descripcion = faq.get("desc_faq", "")
+        video = faq.get("video_link")
+
+        texto = (
+            f"📟 Alarma: {modelo}\n"
+            f"📌 Problema: {titulo}\n\n"
+            f"✅ *Solución encontrada: {descripcion} *\n"
+        )
+
         if faq.get("video_link"):
-            texto += f"\nVideo: {faq['video_link']}"
-        return texto
+            texto += f"\nVideo: {video}"
+
+        return {
+            "response": texto,
+            "faq_id": faq_id
+        }
+    
     except Exception as e:
         print(e)
         return 'Error al buscar FAQs'
