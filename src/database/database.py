@@ -3,14 +3,10 @@ from typing import Dict, Any, Optional, Tuple
 import asyncmy
 from src.settings import settings
 from src.database.models import User
-from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage, AIMessage
 from zoneinfo import ZoneInfo
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-import os
-
 
 class Database:
     def __init__(self):
@@ -338,21 +334,20 @@ class Database:
 
         return True
 
-    async def log_user_faq(self, thread_id: int, faq_id: int, is_done: bool) -> bool:
-        """Registra que un usuario consultó una FAQ y si se resolvió."""
+    async def log_conversation_faq(
+        self, conversation_id: int, faq_id: int, is_done: bool
+    ) -> int | None:
+        """Registra la FAQ asociada a una conversación y devuelve su ID."""
         await self.connect()
-        query_user = "SELECT user_id FROM conversations WHERE id = %s"
         insert = """
-        INSERT INTO user_faqs (user_id, faq_id, is_done)
+        INSERT INTO conversation_faqs (conversation_id, faq_id, is_done)
         VALUES (%s, %s, %s)
         """
         async with self.write_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(query_user, (thread_id,))
-                res = await cursor.fetchone()
-                if not res:
-                    return False
-                user_id = res[0]
-                await cursor.execute(insert, (user_id, faq_id, int(is_done)))
+                await cursor.execute(
+                    insert, (conversation_id, faq_id, int(is_done))
+                )
                 await conn.commit()
-        return True
+                return cursor.lastrowid
+        return None

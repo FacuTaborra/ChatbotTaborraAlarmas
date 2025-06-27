@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
 from src.settings import settings
-from src.agent.tools.tools import update_user_name_tool, get_user_name_tool, faq_tool, log_user_faq_tool, homeassistant_webhook
+from src.agent.tools.tools import update_user_name_tool, get_user_name_tool, faq_tool, check_open_faqs_tool, update_conversation_faq_tool, homeassistant_webhook
 from src.template.prompts import INTENT_CLASSIFIER_BASE_TEMPLATE
 from src.database.models import AgentState
 
@@ -22,7 +22,7 @@ class ChatAgent:
             openai_api_key=settings.API_KEY,
         )
 
-        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool, log_user_faq_tool]
+        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool]
 
         self.prompt = ChatPromptTemplate.from_messages(
             [
@@ -72,8 +72,6 @@ class ChatAgent:
             for msg in incoming_messages:
                 memory.add_message(msg)
 
-        print(memory)
-
         response = await self.agent_with_history.ainvoke(
             {"input": input_text, "thread_id": thread_id},
             config={"configurable": {"session_id": thread_id}},
@@ -104,7 +102,6 @@ class ChatAgent:
             Identificador único de la conversación.  Distintas sesiones de
             usuario deben usar valores distintos para no mezclar contextos.
         """
-        print(f'Mensaje entrante: {input_text}')
         initial_state = AgentState(
             input=input_text,
             messages=chat_history or [],

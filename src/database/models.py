@@ -74,3 +74,15 @@ class UserFaq(Base):
 
     user = relationship("User")
     faq = relationship("Faq")
+
+
+class ConversationFaq(Base):
+    __tablename__ = "conversation_faqs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
+    faq_id = Column(Integer, ForeignKey("faqs.id"), nullable=False)
+    viewed_at = Column(DateTime, default=datetime.utcnow)
+    is_done = Column(Boolean, default=False)
+
+    conversation = relationship("Conversation")
+    faq = relationship("Faq")

@@ -105,29 +105,23 @@ async def faq_tool(thread_id: int, question: str) -> str:
         video = faq.get("video_link")
 
         texto = (
-            f"📟 Alarma: {modelo}\n"
-            f"📌 Problema: {titulo}\n\n"
-            f"✅ *Solución encontrada: {descripcion} *\n"
+            f"🔔 **Modelo de alarma:** {modelo}\n"
+            f"❓ **Problema:** {titulo}\n\n"
+            f"💡 **Solución:**\n{descripcion}\n"
         )
 
         if faq.get("video_link"):
-            texto += f"\nVideo: {video}"
+            texto += f"\n📹 Video explicativo: {video}"
+
+        texto += "\n\n¿Esta información solucionó tu problema? Responde *sí* o *no*."
+
+        id_conversation_faq = await db.log_conversation_faq(thread_id, faq_id, False)
 
         return {
             "response": texto,
-            "faq_id": faq_id
+            "id_conversation_faq": id_conversation_faq,
         }
     
     except Exception as e:
         print(e)
         return 'Error al buscar FAQs'
-
-
-@tool
-async def log_user_faq_tool(thread_id: int, faq_id: int, is_done: bool = False) -> str:
-    """Guarda en la base qué FAQ vio el usuario y si se resolvió."""
-    db = Database()
-    ok = await db.log_user_faq(thread_id, faq_id, is_done)
-    if ok:
-        return "FAQ registrada"
-    return "No se pudo registrar la FAQ"
