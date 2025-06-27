@@ -1,8 +1,8 @@
 from typing import Dict
 from src.settings import settings
-from src.langchain.agent import ChatAgent
+from src.agent.agent import ChatAgent
 from src.integrations.whatsapp_integration import WhatsAppService
-from src.utils.helpers import parse_whatsapp_payload
+from src.utils.helpers import parse_whatsapp_payload, mask_phone
 from src.database.database import Database
 
 class WhatsAppController:
@@ -48,7 +48,10 @@ class WhatsAppController:
         # Aquí puedes implementar la lógica para manejar el mensaje entrante
         # Por ejemplo, guardar en una base de datos, enviar una respuesta, etc.
         parsed_data = parse_whatsapp_payload(data)
-        print(f"Parsed data: {parsed_data}")
+        sanitized = parsed_data.copy()
+        if sanitized.get("phone"):
+            sanitized["phone"] = mask_phone(sanitized["phone"])
+        print(f"Parsed data: {sanitized}")
 
         if parsed_data["success"] == False:
             return None

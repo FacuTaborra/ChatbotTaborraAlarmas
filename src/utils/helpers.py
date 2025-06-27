@@ -3,8 +3,21 @@ import unicodedata
 from typing import Dict, Any
 import tiktoken
 import src.settings as settings
+from datetime import datetime, timedelta
+from pydantic import BaseModel, ValidationError, field_validator
 import PyPDF2
 
+class ParsedWhatsAppMessage(BaseModel):
+    message_id: str
+    text: str
+    phone: str
+    full_name: str
+
+    @field_validator('text')
+    def validate_text(cls, v):
+        if len(v) > 4096:
+            raise ValueError('Texto demasiado largo')
+        return v
 
 
 def parse_whatsapp_payload(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -65,10 +78,18 @@ def parse_whatsapp_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         result["full_name"] = "Usuario"
 
     if result["message_id"] and result["text"] and result["phone"]:
-        result["success"] = True
+        try:
+            ParsedWhatsAppMessage(
+                message_id=result["message_id"],
+                text=result["text"],
+                phone=result["phone"],
+                full_name=result["full_name"],
+            )
+            result["success"] = True
+        except ValidationError as exc:
+            result["success"] = False
 
     return result
-
 
 
 def normalize_phone(phone: str) -> str:
@@ -92,6 +113,10 @@ def normalize_phone(phone: str) -> str:
 
     return phone
 
+def mask_phone(phone: str) -> str:
+    """Devuelve el número parcialmente oculto para logs."""
+    cleaned = normalize_phone(phone)
+    return cleaned[:-4].replace(cleaned[:-4], "*" * len(cleaned[:-4])) + cleaned[-4:]
 
 def trim_chat_history(chat_history, max_tokens=14000, model_name = settings.settings.MODEL) -> list:
     enc = tiktoken.encoding_for_model(model_name)
@@ -108,15 +133,3 @@ def trim_chat_history(chat_history, max_tokens=14000, model_name = settings.sett
         total_tokens += tokens
 
     return trimmed
-
-def load_pdf_text(pdf_path: str) -> str:
-    """Carga el texto de un archivo PDF y lo limpia."""
-    text = ""
-    with open(pdf_path, "rb") as f:
-        reader = PyPDF2.PdfReader(f)
-        for page in reader.pages:
-            page_text = page.extract_text() or ""
-            text += page_text + "\n"
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    clean_text = " ".join(lines)
-    return clean_text

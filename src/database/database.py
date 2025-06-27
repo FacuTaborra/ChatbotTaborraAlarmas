@@ -6,6 +6,10 @@ from src.database.models import User
 from datetime import datetime, timedelta
 from langchain_core.messages import HumanMessage, AIMessage
 from zoneinfo import ZoneInfo
+from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+import os
 
 
 class Database:
@@ -261,7 +265,6 @@ class Database:
                     return dict(result)
                 return
             
-
     async def is_message_processed(self, message_id: str) -> bool:
         """
         Verifica si un mensaje ya fue procesado usando su message_id.
@@ -281,3 +284,74 @@ class Database:
                 await cursor.execute(query, (message_id,))
                 result = await cursor.fetchone()
                 return result is not None
+            
+    
+    async def update_faq_vectors(self) -> bool:
+        """
+        Recrea el índice FAISS con **un único chunk por FAQ** (opción 3).
+
+        • Modelo de embedding: text-embedding-3-large  
+        • Sin splitter → cada FAQ completa es un documento  
+        • Metadatos clave: faq_id, title_faq, model_alarm, video
+        • Índice persistido en «faqs_index»
+        """
+        # 1) Traer datos
+        await self.connect()
+        sql = """
+            SELECT  f.id,
+                    f.title_faq,
+                    f.desc_faq,
+                    f.link,
+                    am.name AS model_alarm
+            FROM    faqs f
+            JOIN    alarm_models am ON am.id = f.alarm_id
+        """
+        async with self.read_pool.acquire() as conn:
+            async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+                await cur.execute(sql)
+                rows = await cur.fetchall()
+
+        if not rows:
+            return False
+
+        # 2) FAQ completa = 1 documento
+        texts, metadatas = [], []
+        for row in rows:
+            full_text = f"{row['title_faq']}. {row['desc_faq']}"
+            texts.append(full_text)
+            metadatas.append({
+                "faq_id":      row["id"],
+                "title_faq":   row["title_faq"],
+                "model_alarm": row["model_alarm"],
+                "video_link":  row["link"],
+            })
+
+        # Debug rápido
+        for i, txt in enumerate(texts, 1):
+            print(f"FAQ {i}/{len(texts)} | len={len(txt)} chars")
+
+        # 3) Embeddings + FAISS
+        embed = OpenAIEmbeddings(model="text-embedding-3-large")
+        store = FAISS.from_texts(texts, embed, metadatas=metadatas)
+        store.save_local("faqs_index")
+
+        return True
+
+    async def log_user_faq(self, thread_id: int, faq_id: int, is_done: bool) -> bool:
+        """Registra que un usuario consultó una FAQ y si se resolvió."""
+        await self.connect()
+        query_user = "SELECT user_id FROM conversations WHERE id = %s"
+        insert = """
+        INSERT INTO user_faqs (user_id, faq_id, is_done)
+        VALUES (%s, %s, %s)
+        """
+        async with self.write_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query_user, (thread_id,))
+                res = await cursor.fetchone()
+                if not res:
+                    return False
+                user_id = res[0]
+                await cursor.execute(insert, (user_id, faq_id, int(is_done)))
+                await conn.commit()
+        return True

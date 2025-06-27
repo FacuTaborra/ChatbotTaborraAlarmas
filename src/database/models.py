@@ -12,6 +12,9 @@ class AgentState(BaseModel):
     messages: List[BaseMessage] = []
     response: Optional[str] = None
     thread_id: Optional[Union[int, str]] = None
+    faq: Optional[dict] = None
+    needs_clarify: bool = False
+    attempts: int = 0
 
 class User(Base):
     __tablename__ = "users"
@@ -43,3 +46,31 @@ class Message(Base):
     type = Column(String(20), default="text")  # texto, imagen, etc.
 
     conversation = relationship("Conversation", back_populates="messages")
+
+class AlarmModel(Base):
+    __tablename__ = "alarm_models"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False)
+    faqs = relationship("Faq", back_populates="alarm")
+
+
+class Faq(Base):
+    __tablename__ = "faqs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alarm_id = Column(Integer, ForeignKey("alarm_models.id"), nullable=False)
+    title = Column(String(100), nullable=False)
+    description = Column(Text, nullable=False)
+    link = Column(String(255), nullable=True)
+
+    alarm = relationship("AlarmModel", back_populates="faqs")
+
+class UserFaq(Base):
+    __tablename__ = "user_faqs"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    faq_id = Column(Integer, ForeignKey("faqs.id"), nullable=False)
+    viewed_at = Column(DateTime, default=datetime.utcnow)
+    is_done = Column(Boolean, default=False)
+
+    user = relationship("User")
+    faq = relationship("Faq")

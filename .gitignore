@@ -6,6 +6,7 @@ config.py
 __pycache__/
 *.pyc
 *.pyo
+faqs_index
 
 # Ignorar entornos virtuales
 .venv/

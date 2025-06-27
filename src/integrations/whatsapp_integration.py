@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional
 import aiohttp
 from src.settings import settings
+from src.utils.helpers import mask_phone
 
 
 class WhatsAppService:
@@ -47,7 +48,7 @@ class WhatsAppService:
             "text": {"body": message}
         }
 
-        return await self._send_request(payload, f"mensaje a {to}")
+        return await self._send_request(payload, f"mensaje a {mask_phone(to)}")
 
     async def send_image(self, to: str, image_url: str, caption: str = "") -> Dict[str, Any]:
         """
@@ -71,7 +72,7 @@ class WhatsAppService:
             "image": {"link": image_url, "caption": caption}
         }
 
-        return await self._send_request(payload, f"imagen a {to}")
+        return await self._send_request(payload, f"imagen a {mask_phone(to)}")
 
     async def _send_request(self, payload: Dict[str, Any], action_desc: str) -> Dict[str, Any]:
         """
@@ -85,19 +86,20 @@ class WhatsAppService:
             Respuesta de la API
         """
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.api_url,
-                json=payload,
-                headers=self.headers,
-                timeout=10
-            ) as response:
-                response_data = await response.json()
-
-                if response.status == 200:
-                    print(
-                        f"✅ Éxito enviando {action_desc}: {response_data}")
-                else:
-                    print(
-                        f"⚠️ Error enviando {action_desc}: {response_data}")
-                return response_data
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.api_url,
+                    json=payload,
+                    headers=self.headers,
+                    timeout=10,
+                ) as response:
+                    response_data = await response.json()
+                    if response.status == 200:
+                        print(f"✅ Éxito enviando {action_desc}: {response_data}")
+                    else:
+                        print(f"⚠️ Error enviando {action_desc}: {response_data}")
+                    return response_data
+        except aiohttp.ClientError as exc:
+            print(f"❌ Error de red enviando {action_desc}: {exc}")
+            return {"error": "Fallo de conexión con WhatsApp"}
