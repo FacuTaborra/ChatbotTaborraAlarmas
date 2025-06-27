@@ -54,7 +54,7 @@ async def homeassistant_webhook(thread_id: int, action: str, info: str = None) -
     except Exception as e:
         return 'No se pudo ejecutar la acción'
 
-@tool
+@tool(return_direct=True)
 async def faq_tool(thread_id: int, question: str) -> str:
     """
     🔧 **Tool `faq_tool` – Guía paso a paso para resolver problemas o preguntas frecuentes de la alarma**
@@ -98,8 +98,8 @@ async def faq_tool(thread_id: int, question: str) -> str:
         if not faq:
             return "No encontré una respuesta en las FAQs."
         texto = faq.get("desc_faq", "")
-        if faq.get("link"):
-            texto += f"\nVideo: {faq['link']}"
+        if faq.get("video_link"):
+            texto += f"\nVideo: {faq['video_link']}"
         return texto
     except Exception as e:
         print(e)

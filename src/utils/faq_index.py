@@ -20,10 +20,13 @@ async def search_faq(question: str, return_score: bool = False) -> Optional[Tupl
 
     store = FAISS.load_local(index_path, embeddings, allow_dangerous_deserialization=True)
     docs = store.similarity_search_with_score(question, k=1)
+    
     if not docs:
         return (None, 0.0) if return_score else None
 
     doc, distance = docs[0]
+    for k,v in doc.metadata.items():
+        print(f"{k}: {v}")
     similarity = 1 / (1 + distance)
     if return_score:
         return doc.metadata, similarity

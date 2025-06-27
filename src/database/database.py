@@ -288,12 +288,12 @@ class Database:
     
     async def update_faq_vectors(self) -> bool:
         """
-        Re-crea el índice FAISS con todas las FAQs.
+        Recrea el índice FAISS con **un único chunk por FAQ** (opción 3).
 
-        • Modelo de embedding: `text-embedding-3-large`.  
-        • Chunking: 400 tokens con 120 de solapamiento.  
-        • Incluye el nombre del modelo de alarma en los metadatos.  
-        • Guarda el índice en la carpeta local «faqs_index».
+        • Modelo de embedding: text-embedding-3-large  
+        • Sin splitter → cada FAQ completa es un documento  
+        • Metadatos clave: faq_id, title_faq, model_alarm, video
+        • Índice persistido en «faqs_index»
         """
         # 1) Traer datos
         await self.connect()
@@ -314,31 +314,28 @@ class Database:
         if not rows:
             return False
 
-        # 2) Chunking
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=400,
-            chunk_overlap=120,
-        )
-        texts = []
-        metadatas = []
+        # 2) FAQ completa = 1 documento
+        texts, metadatas = [], []
         for row in rows:
             full_text = f"{row['title_faq']}. {row['desc_faq']}"
-            parts = splitter.split_text(full_text)
-            texts.extend(parts)
-            metadatas.extend([
-                {
-                    "id": row["id"],
-                    "title_faq": row["title_faq"],
-                    "desc_faq": row["desc_faq"],
-                    "model_alarm": row["model_alarm"],
-                    "link": row["link"],
-                }
-            ] * len(parts))
+            texts.append(full_text)
+            metadatas.append({
+                "faq_id":      row["id"],
+                "title_faq":   row["title_faq"],
+                "model_alarm": row["model_alarm"],
+                "video_link":  row["link"],
+            })
+
+        # Debug rápido
+        for i, txt in enumerate(texts, 1):
+            print(f"FAQ {i}/{len(texts)} | len={len(txt)} chars")
 
         # 3) Embeddings + FAISS
         embed = OpenAIEmbeddings(model="text-embedding-3-large")
         store = FAISS.from_texts(texts, embed, metadatas=metadatas)
         store.save_local("faqs_index")
+
+        return True
 
     async def log_user_faq(self, thread_id: int, faq_id: int, is_done: bool) -> bool:
         """Registra que un usuario consultó una FAQ y si se resolvió."""
