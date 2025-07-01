@@ -77,7 +77,8 @@ class WhatsAppController:
         response_state = await self.chat_agent.run(
             input_text=parsed_data['text'],
             chat_history=self.chat_history,
-            thread_id=conversation['id'] 
+            thread_id=conversation['id'],
+            conversation_faqs_id=conversation['faq_ids']
         )
 
         await self.whatsapp_service.send_message(parsed_data['phone'], response_state.response)

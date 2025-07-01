@@ -13,9 +13,8 @@ class AgentState(BaseModel):
     response: Optional[str] = None
     thread_id: Optional[Union[int, str]] = None
     faq: Optional[dict] = None
-    needs_clarify: bool = False
-    attempts: int = 0
-
+    conversation_faqs_id: List[int] = []
+    
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, autoincrement=True)

@@ -109,9 +109,10 @@ class Database:
 
         # Solo conversaciones con mensajes
         query = """
-        SELECT c.id, c.user_id, c.started_at, MAX(m.timestamp) as last_msg_time
+        SELECT c.id, c.user_id, c.started_at, MAX(m.timestamp) as last_msg_time, GROUP_CONCAT(DISTINCT cf.id) AS faq_ids
         FROM conversations c
         JOIN messages m ON c.id = m.conversation_id
+        LEFT JOIN conversation_faqs as cf on cf.conversation_id = m.conversation_id
         WHERE c.user_id = %s
         GROUP BY c.id, c.user_id, c.started_at
         ORDER BY last_msg_time DESC
@@ -158,10 +159,15 @@ class Database:
                         chat_history.append(HumanMessage(**msg_kwargs))
                     elif row["sender"] == "bot":
                         chat_history.append(AIMessage(**msg_kwargs))
+
+            faq_raw = conv.get("faq_ids") or ""
+            faq_ids = [int(x) for x in faq_raw.split(",") if x.strip()] if faq_raw else []
+            print(faq_raw)
             conversation = {
                 "id": conv["id"],
                 "user_id": conv["user_id"],
                 "started_at": conv["started_at"],
+                "faq_ids": faq_ids
             }
             return conversation, chat_history
 
@@ -180,6 +186,7 @@ class Database:
             "id": conversation_id,
             "user_id": user_id,
             "started_at": now,
+            "faq_ids": []
         }
         return conversation, []
         
@@ -351,3 +358,32 @@ class Database:
                 await conn.commit()
                 return cursor.lastrowid
         return None
+
+    async def update_conversation_faq(
+        self, convo_faq_id: int, is_done: bool
+    ) -> bool:
+        """Actualiza el estado de una FAQ registrada en la conversación."""
+        await self.connect()
+        query = """
+        UPDATE conversation_faqs
+        SET is_done = %s
+        WHERE id = %s
+        """
+        async with self.write_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query, (int(is_done), convo_faq_id))
+                await conn.commit()
+        return True
+
+    async def get_open_conversation_faqs(self, conversation_id: int):
+        """Obtiene los IDs de FAQs sin resolver de una conversación."""
+        await self.connect()
+        query = """
+        SELECT id FROM conversation_faqs
+        WHERE conversation_id = %s AND is_done = 0
+        """
+        async with self.read_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(query, (conversation_id,))
+                rows = await cursor.fetchall()
+                return [row[0] for row in rows]

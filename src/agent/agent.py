@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
 
 from src.settings import settings
-from src.agent.tools.tools import update_user_name_tool, get_user_name_tool, faq_tool, check_open_faqs_tool, update_conversation_faq_tool, homeassistant_webhook
+from src.agent.tools.tools import update_user_name_tool, get_user_name_tool, faq_tool, update_conversation_faq_tool, homeassistant_webhook
 from src.template.prompts import INTENT_CLASSIFIER_BASE_TEMPLATE
 from src.database.models import AgentState
 
@@ -22,13 +22,14 @@ class ChatAgent:
             openai_api_key=settings.API_KEY,
         )
 
-        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool]
+        self.tools = [update_user_name_tool, get_user_name_tool, faq_tool, update_conversation_faq_tool, homeassistant_webhook]
 
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 ("system", INTENT_CLASSIFIER_BASE_TEMPLATE),
                 ("system", "thread_id: {thread_id}"),
                 MessagesPlaceholder(variable_name="messages"),
+                ("system", "FAQs consultadas en esta conversación:\n{conversation_faqs_id}"),
                 ("user", "{input}"),
                 ("placeholder", "{agent_scratchpad}"),
             ]
@@ -64,16 +65,22 @@ class ChatAgent:
         input_text: str = state.input
         incoming_messages: List = state.messages or []
         thread_id: str = str(state.thread_id or "default")
+        conversation_faqs_id: List[int] = state.conversation_faqs_id or []
 
         memory = self._memories.setdefault(thread_id, InMemoryChatMessageHistory())
         if incoming_messages:
-            print(incoming_messages)
             memory.clear()
             for msg in incoming_messages:
                 memory.add_message(msg)
+        
+        print(memory)
 
         response = await self.agent_with_history.ainvoke(
-            {"input": input_text, "thread_id": thread_id},
+            {
+                "input": input_text,
+                "thread_id": thread_id,
+                "conversation_faqs_id": conversation_faqs_id
+            },
             config={"configurable": {"session_id": thread_id}},
         )
 
@@ -85,9 +92,10 @@ class ChatAgent:
             messages=updated_messages,
             response=output,
             thread_id=thread_id,
+            conversation_faqs_id=state.conversation_faqs_id or [],
         )
 
-    async def run(self, input_text: str, chat_history: Optional[List] = None, thread_id: Optional[int] = None,):
+    async def run(self, input_text: str, chat_history: Optional[List] = None, thread_id: Optional[int] = None, conversation_faqs_id: List[int] = []):
         """
         Punto de entrada para código externo (por ejemplo, un bot de WhatsApp).
 
@@ -106,6 +114,7 @@ class ChatAgent:
             input=input_text,
             messages=chat_history or [],
             thread_id=thread_id,
+            conversation_faqs_id=conversation_faqs_id,
         )
         result_state = await self.graph.ainvoke(initial_state)
         # Si el resultado es un dict, convertilo a AgentState

@@ -125,3 +125,20 @@ async def faq_tool(thread_id: int, question: str) -> str:
     except Exception as e:
         print(e)
         return 'Error al buscar FAQs'
+
+
+@tool
+async def update_conversation_faq_tool(
+    faq_record_id: int, is_done: bool = True
+) -> str:
+    """
+    Marca una FAQ de la conversación como resuelta o no.
+    Preguntar siempre si resolvio el problema, si es afirmativo, marcar como resuelto poneniendo is_done=True.
+    Si no resolvió el problema, marcar como is_done=False.
+    """
+    db = Database()
+    ok = await db.update_conversation_faq(faq_record_id, is_done)
+    if ok:
+        return "OK"
+    return "FAIL"
+
