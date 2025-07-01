@@ -1,5 +1,6 @@
 from typing import Dict
 from src.settings import settings
+from langchain_core.messages import HumanMessage
 from src.agent.agent import ChatAgent
 from src.integrations.whatsapp_integration import WhatsAppService
 from src.utils.helpers import parse_whatsapp_payload, mask_phone
@@ -72,8 +73,16 @@ class WhatsAppController:
                 fullname=parsed_data['full_name'],
                 phone=parsed_data['phone']
             )
-
+        
         conversation, self.chat_history = await self.database.get_or_create_recent_conversation(user_data.id)
+
+        # Registrar inmediatamente el mensaje entrante para evitar duplicados
+        await self.database.save_chat_history(
+            parsed_data.get("message_id"),
+            conversation['id'],
+            [HumanMessage(content=parsed_data['text'])]
+        )
+
         response_state = await self.chat_agent.run(
             input_text=parsed_data['text'],
             chat_history=self.chat_history,
@@ -85,10 +94,7 @@ class WhatsAppController:
 
         mensajes_a_guardar = []
         if response_state.messages:
-            # Último mensaje del usuario (si hay al menos dos)
-            if len(response_state.messages) >= 2:
-                mensajes_a_guardar.append(response_state.messages[-2])
-            # Última respuesta del bot
+            # Solo guardamos la respuesta del bot
             mensajes_a_guardar.append(response_state.messages[-1])
 
         await self.database.save_chat_history(parsed_data.get("message_id"), conversation['id'], mensajes_a_guardar)

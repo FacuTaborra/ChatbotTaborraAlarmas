@@ -6,7 +6,10 @@ aiohttp>=3.8.6
 langchain>=0.1.0
 langchain-openai>=0.0.1
 langchain-community>=0.0.10
+langgraph
 asyncmy
 pydantic
 tiktoken
 PyPDF2
+SQLAlchemy
+pydantic-settings

@@ -93,7 +93,7 @@ async def faq_tool(thread_id: int, question: str) -> str:
         db = Database()
         user = await db.get_user_by_thread_id(thread_id, "level")
         if not user or user.get("level", 0) < 2:
-            return "No tienes permisos para ver esta información."
+            return "Lo siento, no tienes permisos para ver esta información. Si eres cliente por favor, comunicate con el servicio tecnico o con el equipo de ventas"
         faq = await search_faq(question)
         if not faq:
             return "No encontré una respuesta en las FAQs."
