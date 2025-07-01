@@ -19,6 +19,8 @@ import {
   LevelTag,
   StatusChip
 } from './Dashboard.styles';
+import logo from '../../assets/logo.png';
+import ClientRow from '../../components/ClientRow/ClientRow';
 
 const clients = [
   {
@@ -63,7 +65,7 @@ export default function Dashboard({ onLogout }) {
     <Wrapper>
       <Header>
         <Logo>
-          <img src="https://play-lh.googleusercontent.com/RIUhOCbsfv6ILe5EPhz4VGXp2U009lsLhh9CqzZ-E25Ab9nmYG8fgzKw1sjPgV29Y5c=w240-h480-rw" alt="logo" width="32" height="32" />
+          <img src={logo} alt="logo" width="32" height="32" />
           Taborra Alarmas SRL
         </Logo>
         <LogoutBtn onClick={onLogout}>
@@ -117,14 +119,7 @@ export default function Dashboard({ onLogout }) {
           </thead>
           <tbody>
             {filtered.map(c => (
-              <tr key={c.id}>
-                <Td>{c.name}</Td>
-                <Td><FaPhoneAlt size={14} /> {c.phone}</Td>
-                <Td><LevelTag level={c.level}>{c.level}</LevelTag></Td>
-                <Td><FaCalendarAlt size={14} /> {c.registered}</Td>
-                <Td>{c.last}</Td>
-                <Td><StatusChip>Activo</StatusChip></Td>
-              </tr>
+              <ClientRow key={c.id} client={c} />
             ))}
           </tbody>
         </Table>
