@@ -6,8 +6,7 @@ export default function ClientRow({ client }) {
     <Tr>
       <Td>{client.name}</Td>
       <Td><FaPhoneAlt size={14} /> {client.phone}</Td>
-      <Td><LevelTag level={client.level}>{client.level}</LevelTag></Td>
-      <Td><FaCalendarAlt size={14} /> {client.registered}</Td>
+      <Td><LevelTag level={client.level}>{client.levelName}</LevelTag></Td>
       <Td>{client.last}</Td>
       <Td><StatusChip>Activo</StatusChip></Td>
     </Tr>

@@ -1,50 +1,12 @@
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 
 export const Wrapper = styled.div``;
 
-export const Header = styled.header`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #000;
-  padding: 0 2rem;
-  height: 64px;
-  box-shadow: 0 2px 4px rgba(0,0,0,.05);
-`;
-
-export const Logo = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  color: #fff;
-  img {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-  }
-`;
-
-export const LogoutBtn = styled.button`
-  background: var(--brand-gold);
-  color: #000;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-
-  &:hover {
-    background: #e2b94d;
-  }
-`;
-
 export const Main = styled.main`
-  padding: 2rem;
+  padding: 1rem 2rem 2rem; /* Reducir solo el padding superior */
   background: var(--surface);
-  min-height: calc(100vh - 64px);
+  height: auto; /* Ajustar el alto automáticamente al contenido */
 `;
 
 export const Stats = styled.div`
@@ -76,6 +38,14 @@ export const StatCard = styled.div`
     font-weight: 700;
     color: var(--brand-dark);
   }
+`;
+
+export const WeeklyActivityCard = styled(StatCard)`
+  background: var(--weekly);
+`;
+
+export const MonthlyActivityCard = styled(StatCard)`
+  background: var(--monthly);
 `;
 
 export const SearchBar = styled.div`
@@ -145,6 +115,16 @@ export const Th = styled.th`
   box-shadow: 0 2px 2px rgba(0,0,0,0.05);
 `;
 
+export const StyledTh = styled.th`
+  text-align: center;
+  width: calc(100% / 5);
+`;
+
+export const StyledTable = styled.table`
+  table-layout: fixed;
+  width: 100%;
+`;
+
 export const Td = styled.td`
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--border);
@@ -162,9 +142,9 @@ export const LevelTag = styled.span`
   font-weight: 600;
   color: var(--brand-dark);
   background: ${({level}) =>
-    level === 'BÁSICO'
+    level === 1
       ? 'var(--basic)'
-      : level === 'PREMIUM'
+      : level === 2
       ? 'var(--premium)'
       : 'var(--vip)'};
 `;

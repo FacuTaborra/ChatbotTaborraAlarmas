@@ -5,6 +5,7 @@ export const Tr = styled.tr``;
 export const Td = styled.td`
   padding: 1.15rem 1rem;
   border-top: 1px solid var(--border);
+  text-align: center;
 
   svg {
     vertical-align: middle;
@@ -17,13 +18,19 @@ export const LevelTag = styled.span`
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--brand-dark);
-  background: ${({ level }) =>
-    level === 'BÁSICO'
-      ? 'var(--basic)'
-      : level === 'PREMIUM'
-      ? 'var(--premium)'
-      : 'var(--vip)'};
+  color: #fff;
+  background: ${({ level }) => {
+    switch (level) {
+      case 1:
+        return '#e57373'; 
+      case 2:
+        return '#64b5f6'; 
+      case 3:
+        return '#81c784'; 
+      default:
+        return '#b0bec5';
+    }
+  }};
 `;
 
 export const StatusChip = styled.span`
