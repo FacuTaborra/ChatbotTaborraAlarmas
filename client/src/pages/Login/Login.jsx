@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiLoader } from 'react-icons/fi';
 import { Container, Card, Form, Input, Button, Title, Logo } from './Login.styles';
+import logo from '../../assets/logo.png';
 
 export default function Login({ onLogin }) {
   const [user, setUser] = useState('');
@@ -18,7 +19,7 @@ export default function Login({ onLogin }) {
   return (
     <Container>
       <Card>
-        <Logo src="https://play-lh.googleusercontent.com/RIUhOCbsfv6ILe5EPhz4VGXp2U009lsLhh9CqzZ-E25Ab9nmYG8fgzKw1sjPgV29Y5c=w240-h480-rw" alt="Logo" />
+        <Logo src={logo} alt="Logo" />
         <Title>Iniciar Sesión</Title>
         <Form onSubmit={handleSubmit}>
           <Input

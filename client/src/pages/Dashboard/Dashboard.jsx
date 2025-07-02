@@ -1,11 +1,7 @@
 import { useState } from 'react';
-import { FiLogOut } from 'react-icons/fi';
-import { FaCalendarAlt, FaPhoneAlt } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 import {
   Wrapper,
-  Header,
-  Logo,
-  LogoutBtn,
   Main,
   Stats,
   StatCard,
@@ -14,81 +10,100 @@ import {
   Select,
   LoadBtn,
   Table,
-  Th,
-  Td,
-  LevelTag,
-  StatusChip
+  StyledTable,
+  StyledTh,
+  WeeklyActivityCard,
+  MonthlyActivityCard
 } from './Dashboard.styles';
+import Header from '../../components/Header/Header';
+import ClientRow from '../../components/ClientRow/ClientRow.jsx';
+
+const levelMapping = {
+  1: 'No asociado',
+  2: 'Cliente',
+  3: 'Personalizado',
+};
 
 const clients = [
-  {
-    id: 1,
-    name: 'Juan Carlos Pérez',
-    phone: '+54 91 1234-56789',
-    level: 'BÁSICO',
-    registered: '14/1/2024',
-    last: '19/1/2024',
-  },
-  {
-    id: 2,
-    name: 'María González',
-    phone: '+54 91 1987-65432',
-    level: 'PREMIUM',
-    registered: '9/1/2024',
-    last: '18/1/2024',
-  },
-  {
-    id: 3,
-    name: 'Roberto Silva',
-    phone: '+54 91 5555-5555',
-    level: 'VIP',
-    registered: '4/1/2024',
-    last: '17/1/2024',
-  }
+  { id: 1, name: 'Juan Carlos Pérez', phone: '+54 91 1234-56789', level: 1, last: '19/1/2024' },
+  { id: 2, name: 'María González', phone: '+54 91 1987-65432', level: 2, last: '18/1/2024' },
+  { id: 3, name: 'Roberto Silva', phone: '+54 91 5555-5555', level: 3, last: '17/1/2024' },
+  { id: 4, name: 'Ana López', phone: '+54 91 4444-4444', level: 1, last: '16/1/2024' },
+  { id: 5, name: 'Carlos García', phone: '+54 91 3333-3333', level: 2, last: '15/1/2024' },
+  { id: 6, name: 'Laura Martínez', phone: '+54 91 2222-2222', level: 3, last: '14/1/2024' },
+  { id: 7, name: 'Pedro Sánchez', phone: '+54 91 1111-1111', level: 1, last: '13/1/2024' },
+  { id: 8, name: 'Sofía Fernández', phone: '+54 91 6666-6666', level: 2, last: '12/1/2024' },
+  { id: 9, name: 'Miguel Torres', phone: '+54 91 7777-7777', level: 3, last: '11/1/2024' },
+  { id: 10, name: 'Isabel Gómez', phone: '+54 91 8888-8888', level: 1, last: '10/1/2024' },
+  { id: 11, name: 'Luis Ramírez', phone: '+54 91 9999-9999', level: 2, last: '9/1/2024' },
+  { id: 12, name: 'Carmen Ruiz', phone: '+54 91 0000-0000', level: 3, last: '8/1/2024' },
+  { id: 13, name: 'Jorge Castro', phone: '+54 91 1234-0000', level: 1, last: '7/1/2024' },
+  { id: 14, name: 'Elena Vega', phone: '+54 91 5678-0000', level: 2, last: '6/1/2024' },
+  { id: 15, name: 'Raúl Moreno', phone: '+54 91 9101-0000', level: 3, last: '5/1/2024' },
 ];
 
 export default function Dashboard({ onLogout }) {
   const [levelFilter, setLevelFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const clientsPerPage = 8;
+  const navigate = useNavigate();
 
   const filtered = clients.filter(c => {
-    const matchLevel = levelFilter === 'all' || c.level === levelFilter;
+    const matchLevel = levelFilter === 'all' || c.level === parseInt(levelFilter);
     const matchSearch =
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search);
     return matchLevel && matchSearch;
   });
 
+  const totalPages = Math.ceil(filtered.length / clientsPerPage);
+  const paginatedClients = filtered.slice(
+    (currentPage - 1) * clientsPerPage,
+    currentPage * clientsPerPage
+  );
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  const handleRowClick = (clientId) => {
+    console.log(`Navigating to client ${clientId}`);
+    navigate(`/client/${clientId}`);
+  };
+
   return (
     <Wrapper>
-      <Header>
-        <Logo>
-          <img src="https://play-lh.googleusercontent.com/RIUhOCbsfv6ILe5EPhz4VGXp2U009lsLhh9CqzZ-E25Ab9nmYG8fgzKw1sjPgV29Y5c=w240-h480-rw" alt="logo" width="32" height="32" />
-          Taborra Alarmas SRL
-        </Logo>
-        <LogoutBtn onClick={onLogout}>
-          <FiLogOut /> Cerrar Sesión
-        </LogoutBtn>
-      </Header>
+      <Header onLogout={onLogout} />
       <Main>
         <h2>Gestión de Clientes</h2>
         <Stats>
           <StatCard>
-            <div>5</div>
+            <div>{clients.length}</div>
             <div>Total</div>
           </StatCard>
           <StatCard>
-            <div>4</div>
-            <div>Clientes no Asociados</div>
+            <div>{filtered.filter(c => c.level === 1).length}</div>
+            <div>No Asociados</div>
           </StatCard>
           <StatCard>
-            <div>2</div>
-            <div>Clientes Asociados</div>
+            <div>{filtered.filter(c => c.level === 2).length}</div>
+            <div>Clientes</div>
           </StatCard>
           <StatCard>
-            <div>1</div>
-            <div>Clientes Personalizado</div>
+            <div>{filtered.filter(c => c.level === 3).length}</div>
+            <div>Personalizados</div>
           </StatCard>
+          <WeeklyActivityCard>
+            <div>35</div>
+            <div>Actividad Semanal</div>
+          </WeeklyActivityCard>
+          <MonthlyActivityCard>
+            <div>120</div>
+            <div>Actividad Mensual</div>
+          </MonthlyActivityCard>
         </Stats>
         <SearchBar>
           <Input
@@ -98,36 +113,41 @@ export default function Dashboard({ onLogout }) {
           />
           <Select value={levelFilter} onChange={e => setLevelFilter(e.target.value)}>
             <option value="all">Todos los niveles</option>
-            <option value="BÁSICO">Básico</option>
-            <option value="PREMIUM">Premium</option>
-            <option value="VIP">VIP</option>
+            <option value="1">No asociado</option>
+            <option value="2">Cliente</option>
+            <option value="3">Personalizado</option>
           </Select>
         </SearchBar>
         <LoadBtn>Cargar Teléfonos</LoadBtn>
-        <Table>
+        <Table as={StyledTable}>
           <thead>
             <tr>
-              <Th>Cliente</Th>
-              <Th>Teléfono</Th>
-              <Th>Nivel</Th>
-              <Th>Fecha de Registro</Th>
-              <Th>Última Actividad</Th>
-              <Th>Estado</Th>
+              <StyledTh>Cliente</StyledTh>
+              <StyledTh>Teléfono</StyledTh>
+              <StyledTh>Nivel</StyledTh>
+              <StyledTh>Última Actividad</StyledTh>
+              <StyledTh>Estado</StyledTh>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(c => (
-              <tr key={c.id}>
-                <Td>{c.name}</Td>
-                <Td><FaPhoneAlt size={14} /> {c.phone}</Td>
-                <Td><LevelTag level={c.level}>{c.level}</LevelTag></Td>
-                <Td><FaCalendarAlt size={14} /> {c.registered}</Td>
-                <Td>{c.last}</Td>
-                <Td><StatusChip>Activo</StatusChip></Td>
-              </tr>
+            {paginatedClients.map(c => (
+              <ClientRow
+                key={c.id}
+                client={{ ...c, levelName: levelMapping[c.level] }}
+                onClick={() => handleRowClick(c.id)}
+              />
             ))}
           </tbody>
         </Table>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+          <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>
+            Anterior
+          </button>
+          <span style={{ margin: '0 1rem' }}>Página {currentPage} de {totalPages}</span>
+          <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages}>
+            Siguiente
+          </button>
+        </div>
       </Main>
     </Wrapper>
   );
