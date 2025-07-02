@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Wrapper,
   Main,
@@ -46,6 +47,7 @@ export default function Dashboard({ onLogout }) {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const clientsPerPage = 8;
+  const navigate = useNavigate();
 
   const filtered = clients.filter(c => {
     const matchLevel = levelFilter === 'all' || c.level === parseInt(levelFilter);
@@ -65,6 +67,11 @@ export default function Dashboard({ onLogout }) {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
     }
+  };
+
+  const handleRowClick = (clientId) => {
+    console.log(`Navigating to client ${clientId}`);
+    navigate(`/client/${clientId}`);
   };
 
   return (
@@ -124,7 +131,11 @@ export default function Dashboard({ onLogout }) {
           </thead>
           <tbody>
             {paginatedClients.map(c => (
-              <ClientRow key={c.id} client={{ ...c, levelName: levelMapping[c.level] }} />
+              <ClientRow
+                key={c.id}
+                client={{ ...c, levelName: levelMapping[c.level] }}
+                onClick={() => handleRowClick(c.id)}
+              />
             ))}
           </tbody>
         </Table>

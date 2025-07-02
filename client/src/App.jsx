@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Login from './pages/Login/Login';
 import Dashboard from './pages/Dashboard/Dashboard.jsx';
 import Faqs from './pages/Faqs/Faqs.jsx';
+import ClientDetail from './pages/ClientDetail/ClientDetail.jsx';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -46,6 +47,12 @@ export default function App() {
         path="/faqs"
         element={
           isAuthenticated ? <Faqs onLogout={handleLogout} /> : <Navigate to="/login" replace />
+        }
+      />
+      <Route
+        path="/client/:clientId"
+        element={
+          isAuthenticated ? <ClientDetail /> : <Navigate to="/login" replace />
         }
       />
       <Route path="/" element={<Navigate to="/login" replace />} />
